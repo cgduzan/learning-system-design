@@ -1,0 +1,59 @@
+{
+  "version": "3.8",
+  "services": {
+    "load-balancer-1": {
+      "image": "nginx:alpine",
+      "ports": [
+        "80:80"
+      ],
+      "environment": {},
+      "networks": [
+        "app_network"
+      ],
+      "volumes": [
+        "./nginx.conf:/etc/nginx/nginx.conf:ro"
+      ]
+    },
+    "app-server-2": {
+      "image": "node:18-alpine",
+      "ports": [
+        "3000:3000"
+      ],
+      "environment": {
+        "NODE_ENV": "production"
+      },
+      "networks": [
+        "app_network"
+      ],
+      "volumes": [
+        "./app:/app"
+      ],
+      "depends_on": [
+        "load-balancer-1"
+      ]
+    },
+    "app-server-3": {
+      "image": "node:18-alpine",
+      "ports": [
+        "3000:3000"
+      ],
+      "environment": {
+        "NODE_ENV": "production"
+      },
+      "networks": [
+        "app_network"
+      ],
+      "volumes": [
+        "./app:/app"
+      ],
+      "depends_on": [
+        "load-balancer-1"
+      ]
+    }
+  },
+  "networks": {
+    "app_network": {
+      "driver": "bridge"
+    }
+  }
+}

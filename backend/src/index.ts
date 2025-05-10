@@ -1,8 +1,15 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { Infrastructure } from './types/infrastructure';
+import { generateDockerCompose } from './services/docker-compose';
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// In-memory infrastructure state
+let infrastructureState: Infrastructure | null = null;
 
 // Middleware
 app.use(cors());
@@ -13,10 +20,9 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Infrastructure endpoints
+// Get current infrastructure
 app.get('/api/infrastructure', (req, res) => {
-  // TODO: Return current infrastructure state
-  res.json({
+  res.json(infrastructureState || {
     nodes: [
       {
         id: '1',
@@ -39,6 +45,32 @@ app.get('/api/infrastructure', (req, res) => {
       { id: 'e1-3', source: '1', target: '3' },
     ],
   });
+});
+
+// Set infrastructure and generate docker-compose.yml
+app.post('/api/infrastructure', (req, res) => {
+  try {
+    const infrastructure = req.body as Infrastructure;
+    infrastructureState = infrastructure;
+    
+    // Generate docker-compose.yml
+    const composeYml = generateDockerCompose(infrastructure);
+    const composePath = path.join(__dirname, '../docker-compose.yml');
+    fs.writeFileSync(composePath, composeYml);
+    
+    res.json({ 
+      status: 'ok', 
+      message: 'Infrastructure updated and docker-compose.yml generated.',
+      composeYml 
+    });
+  } catch (error) {
+    console.error('Error generating Docker Compose:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Failed to generate Docker Compose file',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 app.listen(port, () => {
