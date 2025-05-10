@@ -18,6 +18,16 @@ const nodeTypes = {
   'app-server': AppServerNode,
 };
 
+interface DeploymentStatus {
+  status: 'idle' | 'deploying' | 'running' | 'error';
+  message?: string;
+  services?: {
+    name: string;
+    status: string;
+    ports: string[];
+  }[];
+}
+
 export default function InfrastructureViewer() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -27,6 +37,8 @@ export default function InfrastructureViewer() {
   const [applying, setApplying] = useState(false);
   const [composeConfig, setComposeConfig] = useState<string | null>(null);
   const [isComposeExpanded, setIsComposeExpanded] = useState(true);
+  const [deploymentStatus, setDeploymentStatus] = useState<DeploymentStatus>({ status: 'idle' });
+  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
 
   useEffect(() => {
     const loadInfrastructure = async () => {
@@ -52,6 +64,31 @@ export default function InfrastructureViewer() {
 
     loadInfrastructure();
   }, [setNodes, setEdges]);
+
+  // Poll deployment status when running
+  useEffect(() => {
+    if (deploymentStatus.status === 'running' || deploymentStatus.status === 'deploying') {
+      const interval = window.setInterval(async () => {
+        try {
+          const response = await fetch('http://localhost:3000/api/deploy/status');
+          const status = await response.json();
+          setDeploymentStatus(status);
+          if (status.status === 'error' || status.status === 'idle') {
+            window.clearInterval(interval);
+            setPollingInterval(null);
+          }
+        } catch (error) {
+          console.error('Error polling deployment status:', error);
+        }
+      }, 2000);
+      setPollingInterval(interval);
+    }
+    return () => {
+      if (pollingInterval) {
+        window.clearInterval(pollingInterval);
+      }
+    };
+  }, [deploymentStatus.status]);
 
   const onConnect = useCallback(
     (params: Connection | Edge) => setEdges((eds) => addEdge(params, eds)),
@@ -86,6 +123,36 @@ export default function InfrastructureViewer() {
     }
   };
 
+  const handleDeploy = async () => {
+    try {
+      setError(null);
+      const response = await fetch('http://localhost:3000/api/deploy', {
+        method: 'POST',
+      });
+      const status = await response.json();
+      setDeploymentStatus(status);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to deploy infrastructure');
+    }
+  };
+
+  const handleStopDeployment = async () => {
+    try {
+      setError(null);
+      const response = await fetch('http://localhost:3000/api/deploy/stop', {
+        method: 'POST',
+      });
+      const result = await response.json();
+      if (response.ok) {
+        setDeploymentStatus({ status: 'idle', message: result.message });
+      } else {
+        setError(result.message || 'Failed to stop deployment');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to stop deployment');
+    }
+  };
+
   if (loading) {
     return <div className="h-full w-full flex items-center justify-center">Loading...</div>;
   }
@@ -104,6 +171,34 @@ export default function InfrastructureViewer() {
         >
           {applying ? 'Applying...' : 'Apply Infrastructure'}
         </button>
+        {composeConfig && (
+          <>
+            <button
+              className={`px-4 py-2 rounded ${
+                deploymentStatus.status === 'running'
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : 'bg-green-600 hover:bg-green-700'
+              } text-white disabled:opacity-50`}
+              onClick={deploymentStatus.status === 'running' ? handleStopDeployment : handleDeploy}
+              disabled={deploymentStatus.status === 'deploying'}
+            >
+              {deploymentStatus.status === 'running'
+                ? 'Stop Deployment'
+                : deploymentStatus.status === 'deploying'
+                ? 'Deploying...'
+                : 'Deploy'}
+            </button>
+            {deploymentStatus.message && (
+              <span
+                className={`${
+                  deploymentStatus.status === 'error' ? 'text-red-600' : 'text-green-600'
+                }`}
+              >
+                {deploymentStatus.message}
+              </span>
+            )}
+          </>
+        )}
         {status && <span className="text-green-600">{status}</span>}
         {error && <span className="text-red-600">{error}</span>}
       </div>

@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { Infrastructure } from './types/infrastructure';
 import { generateDockerCompose } from './services/docker-compose';
+import { deployInfrastructure, stopDeployment, getDeploymentStatus } from './services/docker';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -71,6 +72,39 @@ app.post('/api/infrastructure', (req, res) => {
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
+});
+
+// Deploy infrastructure
+app.post('/api/deploy', async (req, res) => {
+  try {
+    const status = await deployInfrastructure();
+    res.json(status);
+  } catch (error) {
+    console.error('Error deploying infrastructure:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Deployment failed',
+    });
+  }
+});
+
+// Stop deployment
+app.post('/api/deploy/stop', async (req, res) => {
+  try {
+    await stopDeployment();
+    res.json({ status: 'ok', message: 'Deployment stopped' });
+  } catch (error) {
+    console.error('Error stopping deployment:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Failed to stop deployment',
+    });
+  }
+});
+
+// Get deployment status
+app.get('/api/deploy/status', (req, res) => {
+  res.json(getDeploymentStatus());
 });
 
 app.listen(port, () => {
