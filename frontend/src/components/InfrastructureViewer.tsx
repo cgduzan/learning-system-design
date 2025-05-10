@@ -38,7 +38,6 @@ export default function InfrastructureViewer() {
   const [composeConfig, setComposeConfig] = useState<string | null>(null);
   const [isComposeExpanded, setIsComposeExpanded] = useState(true);
   const [deploymentStatus, setDeploymentStatus] = useState<DeploymentStatus>({ status: 'idle' });
-  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
 
   useEffect(() => {
     const loadInfrastructure = async () => {
@@ -67,25 +66,24 @@ export default function InfrastructureViewer() {
 
   // Poll deployment status when running
   useEffect(() => {
+    let interval: number | undefined = undefined;
     if (deploymentStatus.status === 'running' || deploymentStatus.status === 'deploying') {
-      const interval = window.setInterval(async () => {
+      interval = window.setInterval(async () => {
         try {
           const response = await fetch('http://localhost:3000/api/deploy/status');
           const status = await response.json();
           setDeploymentStatus(status);
           if (status.status === 'error' || status.status === 'idle') {
             window.clearInterval(interval);
-            setPollingInterval(null);
           }
         } catch (error) {
           console.error('Error polling deployment status:', error);
         }
       }, 2000);
-      setPollingInterval(interval);
     }
     return () => {
-      if (pollingInterval) {
-        window.clearInterval(pollingInterval);
+      if (interval) {
+        window.clearInterval(interval);
       }
     };
   }, [deploymentStatus.status]);
@@ -105,7 +103,7 @@ export default function InfrastructureViewer() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nodes: nodes.map(({ data: ignored, ...rest }) => rest), // remove React Flow data
+          nodes: nodes.map(({ data: _, ...rest }) => rest), // remove React Flow data
           edges,
         }),
       });

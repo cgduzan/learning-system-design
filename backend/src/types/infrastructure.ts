@@ -1,3 +1,5 @@
+import type { NodeConfig } from './node-config';
+
 export type NodeType = 'load-balancer' | 'app-server' | 'database' | 'cache' | 'message-queue';
 
 export interface Position {
@@ -10,6 +12,7 @@ export interface Node {
   type: NodeType;
   position: Position;
   data?: Record<string, any>;
+  config?: NodeConfig;
 }
 
 export interface Edge {
